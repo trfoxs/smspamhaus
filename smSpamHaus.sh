@@ -1,6 +1,6 @@
 #!/bin/bash
 # smSpamHaus project
-# Update Spamhaus DROP IPv4 CIDR list and load it into ipset.
+# Update the Spamhaus DROP IPv4 CIDR list and load it into ipset.
 
 set -u
 
@@ -13,12 +13,12 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"
 }
 
-log "Güncelleme başladı."
+log "Update started."
 
 rm -f "$JSON"
 
 if ! curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 "$URL" -o "$JSON"; then
-    log "HATA: JSON indirilemedi."
+    log "ERROR: Failed to download the JSON feed."
     exit 1
 fi
 
@@ -27,7 +27,7 @@ fi
 COUNT=$(jq -r 'select(.type != "metadata" and .cidr) | .cidr' "$JSON" | wc -l)
 
 if [ "$COUNT" -lt 1 ]; then
-    log "HATA: CIDR bulunamadı."
+    log "ERROR: No CIDR records found."
     exit 1
 fi
 
@@ -42,28 +42,28 @@ if ! jq -r 'select(.type != "metadata" and .cidr) | .cidr' "$JSON" |
         ipset add "$SET" "$CIDR" -exist || exit 1
     done
 then
-    log "HATA: CIDR'lar ipset'e yüklenemedi."
+    log "ERROR: Failed to load CIDR records into ipset."
     exit 1
 fi
 
 ACTIVE=$(ipset list "$SET" | awk '/Number of entries:/ {print $4}')
 
 if [ -z "$ACTIVE" ] || [ "$ACTIVE" -lt 1 ]; then
-    log "HATA: ipset boş kaldı."
+    log "ERROR: ipset is empty."
     exit 1
 fi
 
-log "Spamhaus: $ACTIVE benzersiz CIDR yüklendi. Kaynak kayıt: $COUNT."
+log "Spamhaus: $ACTIVE unique CIDRs loaded. Source records: $COUNT."
 
 if ! iptables -C INPUT -m set --match-set "$SET" src -j DROP 2>/dev/null; then
     iptables -I INPUT 1 -m set --match-set "$SET" src -j DROP
-    log "iptables DROP kuralı eklendi."
+    log "iptables DROP rule added."
 fi
 
 if systemctl is-active --quiet fail2ban; then
     systemctl restart fail2ban
-    log "Fail2Ban yeniden başlatıldı."
+    log "Fail2Ban restarted."
 fi
 
-log "Güncelleme tamamlandı."
+log "Update completed."
 exit 0
