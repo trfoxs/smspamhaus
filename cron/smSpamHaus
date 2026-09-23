@@ -1,0 +1,2 @@
+# smSpamHaus - weekly Spamhaus DROP IPv4 update
+0 4 * * 0 root /usr/local/sbin/smSpamHaus.sh

@@ -1,0 +1,13 @@
+[Unit]
+Description=smSpamHaus Spamhaus DROP updater
+Wants=network-online.target
+After=network-online.target
+Before=fail2ban.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/smSpamHaus.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
