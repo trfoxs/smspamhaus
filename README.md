@@ -458,10 +458,10 @@ Update logs are stored at:
 Example:
 
 ```text
-[2026-09-23 04:00:00] Güncelleme başladı.
-[2026-09-23 04:00:02] Spamhaus: 1711 benzersiz CIDR yüklendi. Kaynak kayıt: 1712.
-[2026-09-23 04:00:02] iptables DROP kuralı doğrulandı.
-[2026-09-23 04:00:02] Güncelleme tamamlandı.
+[2026-09-23 04:00:00] Update started.
+[2026-09-23 04:00:02] Spamhaus: 1711 unique CIDRs loaded. Source records: 1712.
+[2026-09-23 04:00:02] iptables DROP rule verified.
+[2026-09-23 04:00:02] Update completed successfully.
 ```
 
 No Fail2Ban restart is performed or logged.
