@@ -1,8 +1,4 @@
 #!/bin/bash
-# smSpamHaus installer
-# Installs dependencies, ipset, firewall rule, systemd service and weekly cron.
-# Run as root.
-
 set -euo pipefail
 
 INSTALL_DIR="/usr/local/sbin"
@@ -11,89 +7,58 @@ SERVICE_NAME="smSpamHaus.service"
 CRON_NAME="smSpamHaus"
 SET="smSpamHaus"
 LOG="/var/log/smSpamHaus.log"
-
-SCRIPT_SOURCE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/smSpamHaus.sh"
-SERVICE_SOURCE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/systemd/smSpamHaus.service"
-CRON_SOURCE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/cron/smSpamHaus"
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: install.sh must be run as root."
     exit 1
 fi
 
-echo "[1/8] Checking required packages..."
-
 export DEBIAN_FRONTEND=noninteractive
+
+echo "[1/7] Checking dependencies..."
 apt-get update
 apt-get install -y curl jq ipset iptables
 
-echo "[2/8] Installing files..."
-
-install -m 0755 "$SCRIPT_SOURCE" "$INSTALL_DIR/$SCRIPT_NAME"
-install -m 0644 "$SERVICE_SOURCE" "/etc/systemd/system/$SERVICE_NAME"
-install -m 0644 "$CRON_SOURCE" "/etc/cron.d/$CRON_NAME"
+install -m 0755 "$BASE_DIR/smSpamHaus.sh" "$INSTALL_DIR/$SCRIPT_NAME"
+install -m 0644 "$BASE_DIR/systemd/$SERVICE_NAME" "/etc/systemd/system/$SERVICE_NAME"
+install -m 0644 "$BASE_DIR/cron/$CRON_NAME" "/etc/cron.d/$CRON_NAME"
 touch "$LOG"
 chmod 0644 "$LOG"
 
-echo "[3/8] Preparing ipset..."
-
-if ipset list -name | grep -qx "$SET"; then
-    echo "     smSpamHaus ipset already exists."
-else
-    ipset create "$SET" hash:net family inet
-    echo "     smSpamHaus ipset created."
+echo "[2/7] Preparing ipset..."
+if ! ipset list -name | grep -qx "$SET"; then
+    ipset create "$SET" hash:net family inet hashsize 1024 maxelem 65536
 fi
 
-echo "[4/8] Checking firewall rule..."
-
-if iptables -C INPUT -m set --match-set "$SET" src -j DROP 2>/dev/null; then
-    echo "     DROP rule already exists."
-else
+echo "[3/7] Preparing iptables DROP rule..."
+if ! iptables -C INPUT -m set --match-set "$SET" src -j DROP 2>/dev/null; then
     iptables -I INPUT 1 -m set --match-set "$SET" src -j DROP
-    echo "     DROP rule added."
 fi
 
-echo "[5/8] Preparing systemd..."
-
+echo "[4/7] Installing systemd and cron..."
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME"
-
-echo "[6/8] Preparing weekly cron..."
-
-chmod 0644 "/etc/cron.d/$CRON_NAME"
-
 if systemctl list-unit-files 2>/dev/null | grep -q '^cron.service'; then
     systemctl enable --now cron
 fi
 
-echo "[7/8] Running the initial Spamhaus update..."
-
+echo "[5/7] Initial Spamhaus update..."
 "$INSTALL_DIR/$SCRIPT_NAME"
 
-echo "[8/8] Starting the service..."
-
+echo "[6/7] Starting smSpamHaus..."
 systemctl start "$SERVICE_NAME"
 
-echo
-echo "========================================"
-echo " smSpamHaus installation completed"
-echo "========================================"
-echo
-echo "ipset:"
+echo "[7/7] Verification..."
+
 ipset list "$SET" | grep -E 'Name:|Type:|Number of entries:'
-echo
-echo "iptables:"
-iptables -C INPUT -m set --match-set "$SET" src -j DROP 2>/dev/null && echo "DROP kuralı aktif."
-echo
-echo "systemd:"
+iptables -C INPUT -m set --match-set "$SET" src -j DROP 2>/dev/null
+echo "DROP rule: active"
 systemctl is-enabled "$SERVICE_NAME"
-echo
-echo "cron:"
+echo "Cron:"
 cat "/etc/cron.d/$CRON_NAME"
+
 echo
-echo "Log:"
-echo "$LOG"
-echo
-echo "Manual update:"
-echo "$INSTALL_DIR/$SCRIPT_NAME"
-echo
+printf '%s\n' "smSpamHaus installed successfully."
+printf '%s\n' "Fail2Ban was NOT restarted or reconfigured."
+printf '%s\n' "Plesk Firewall was NOT restarted or reconfigured."
