@@ -1,12 +1,15 @@
 [Unit]
 Description=smSpamHaus Spamhaus DROP updater
 Wants=network-online.target
-After=network-online.target psa-firewall.service
+After=network-online.target
 
 [Service]
 Type=oneshot
+ExecStartPre=/bin/sleep 10
 ExecStart=/usr/local/sbin/smSpamHaus.sh
 RemainAfterExit=yes
+Restart=on-failure
+RestartSec=30
 
 [Install]
 WantedBy=multi-user.target
